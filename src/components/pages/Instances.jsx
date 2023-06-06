@@ -4,44 +4,23 @@ import { useColorScheme } from "@mui/joy/styles";
 import Sheet from "@mui/joy/Sheet";
 import Typography from "@mui/joy/Typography";
 import Box from "@mui/joy/Box";
+import Container from "@mui/joy/Container";
+import Grid from "@mui/joy/Grid";
+import Button from "@mui/joy/Button";
 import Chip from "@mui/joy/Chip";
-import DataGrid from "react-data-grid";
-import { useLocation, useLoaderData } from "react-router-dom";
-import { User, ExternalLink } from "react-feather";
+import Card from "@mui/joy/Card";
+import CardContent from "@mui/joy/CardContent";
+import CardOverflow from "@mui/joy/CardOverflow";
+import DataGrid, { SelectColumn } from "react-data-grid";
+import { useLoaderData } from "react-router-dom";
+import { User, Play, Power, Pause } from "react-feather";
 
-import { getInstanceDetail } from "../../services/instances";
+import { getInstanceDetail, updateState } from "../../services/instances";
 
 import "react-data-grid/lib/styles.css";
 import "../rdg-joy.css";
 
 const UserIcon = <User size={16} />;
-
-function nameCellFormatter(props) {
-  return (
-    <Box
-      onClick={(e) => {
-        e.preventDefault();
-        window.location.hash = props.row.id;
-      }}
-      sx={{
-        textDecoration: "none",
-        color: "inherit",
-        alignItems: "center",
-        flexDirection: "row",
-        display: "flex",
-      }}
-    >
-      {props.row.name}
-      <ExternalLink
-        size={16}
-        color="var(--joy-palette-primary-softColor)"
-        style={{
-          marginLeft: "1.5pt",
-        }}
-      />
-    </Box>
-  );
-}
 
 function ownerCellFormatter(props) {
   return (
@@ -61,10 +40,15 @@ function ownerCellFormatter(props) {
   );
 }
 
+function ramCellFormatter(props) {
+  return <React.Fragment>{Math.floor(props.row.ram / 1024)} MB</React.Fragment>;
+}
+
 const columns = [
-  { key: "name", name: "Name", formatter: nameCellFormatter },
+  SelectColumn,
+  { key: "name", name: "Name" },
   { key: "vcpu", name: "vCPU", sortable: true },
-  { key: "ram", name: "RAM", sortable: true },
+  { key: "ram", name: "RAM", sortable: true, formatter: ramCellFormatter },
   { key: "state", name: "State" },
   { key: "ip", name: "IP" },
   { key: "owner", name: "Owner", formatter: ownerCellFormatter },
@@ -76,44 +60,119 @@ const columns = [
 //   { id: 2, name: "daming-lab-cs201", vcpu: 4, ram: "8GB", owner: "admin" },
 // ];
 
-function InstanceDetail({ instance }) {
-  const { id, name, vcpu, ram, state } = instance;
+function InstanceDetail({ instanceId }) {
+  const [detail, setDetail] = React.useState({});
+
+  React.useEffect(() => {
+    if (!instanceId) return;
+
+    getInstanceDetail(instanceId).then(setDetail).catch(console.log);
+  }, [instanceId]);
+
+  const handleUpdate = React.useCallback(
+    (state) => {
+      updateState(instanceId, state)
+        .then(console.log)
+        .catch(console.log)
+        .finally(() => window.location.reload());
+    },
+    [instanceId]
+  );
+
+  if (!instanceId) {
+    return <React.Fragment />;
+  }
 
   return (
-    <React.Fragment>
-      <Typography>{id}</Typography>
-      <Typography>{name}</Typography>
-      <Typography>{vcpu}</Typography>
-      <Typography>{ram}</Typography>
-      <Typography>{state}</Typography>
-    </React.Fragment>
+    <Grid container spacing={2} sx={{ mx: 1, my: 1, height: "100%" }}>
+      <Grid xs={12} sm={6}>
+        <Card
+          sx={{
+            height: "100%",
+            width: "100%",
+            backgroundColor: "var(--joy-palette-background-level1)",
+          }}
+        >
+          <CardContent>
+            <Typography level="body3">{detail.id}</Typography>
+            <Typography fontWeight="xl">{detail.name}</Typography>
+            <Typography fontSize="xl" fontWeight="xl" sx={{ mt: 1 }}>
+              IP:{" "}
+              <Typography variant="soft" color="info">
+                {detail.ip || "NOT RUNNING"}
+              </Typography>
+            </Typography>
+
+            <Button
+              sx={{ my: 1 }}
+              color="success"
+              disabled={detail.ip !== ""}
+              onClick={() => handleUpdate("start")}
+              startDecorator={<Play size={14} />}
+            >
+              START
+            </Button>
+            <Button
+              sx={{ my: 1 }}
+              color="danger"
+              disabled={detail.ip === ""}
+              onClick={() => handleUpdate("poweroff")}
+              startDecorator={<Power size={14} />}
+            >
+              POWEROFF
+            </Button>
+            <Button
+              sx={{ my: 1 }}
+              color="warning"
+              disabled={detail.ip === ""}
+              onClick={() => handleUpdate("pause")}
+              startDecorator={<Pause size={14} />}
+            >
+              PAUSE
+            </Button>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid xs={12} sm={6}>
+        <Grid xs={12} sx={{ mb: 1 }}>
+          <Card
+            sx={{
+              width: "100%",
+              height: "240px",
+              backgroundColor: "var(--joy-palette-background-level1)",
+            }}
+          >
+            <CardContent>
+              RAM Usage (??/{Math.floor(detail.ram / 1024)}MB)
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid xs={12}>
+          <Card
+            sx={{
+              width: "100%",
+              height: "240px",
+              backgroundColor: "var(--joy-palette-background-level1)",
+            }}
+          >
+            <CardContent>CPU Usage ({detail.vcpu} vCPU) (??%)</CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Grid>
   );
 }
 
 export default function Instances() {
   const [sortColumns, setSortColumns] = React.useState([]);
-  // const [selectedRow, setSelectedRow] = React.useState(new Set());
-  const [instanceDetail, setInstanceDetail] = React.useState({});
+  const [selectedRows, setSelectedRows] = React.useState(() => new Set());
 
   const { data } = useLoaderData();
   const { mode } = useColorScheme();
-  const { hash } = useLocation();
-
-  React.useEffect(() => {
-    if (hash)
-      getInstanceDetail(hash.slice(1))
-        .then(setInstanceDetail)
-        .catch(console.log);
-  }, [hash]);
 
   const rowKeyGetter = (row) => row.id;
   const onSortColumnsChange = (newSortColumns) =>
     setSortColumns(newSortColumns);
-  const onSelectedRowsChange = (newSelectedRows) => {
-    if (newSelectedRows.length !== 0) {
-      window.location.hash = newSelectedRows[0].row.id;
-    }
-  };
 
   return (
     <Sheet
@@ -136,22 +195,26 @@ export default function Instances() {
         rows={data?.instances}
         rowKeyGetter={rowKeyGetter}
         rowHeight={50}
-        // selectedRows={[selectedRow]}
-        onSelectedRowsChange={onSelectedRowsChange}
+        selectedRows={selectedRows}
+        onSelectedRowsChange={(newSelectedRows) => {
+          let last;
+          newSelectedRows.forEach((k) => (last = k));
+          setSelectedRows(new Set([last]));
+        }}
         onSortColumnsChange={onSortColumnsChange}
       />
 
       <Sheet
         variant="outlined"
         sx={{
-          marginTop: 1,
-          height: "50%",
+          my: 2,
+          minHeight: "450px",
           maxWidth: 1200,
           width: "100%",
           mx: "auto",
         }}
       >
-        <InstanceDetail instance={instanceDetail} />
+        <InstanceDetail instanceId={selectedRows.values().next().value} />
       </Sheet>
     </Sheet>
   );

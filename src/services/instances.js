@@ -6,9 +6,19 @@ export async function getInstances() {
 }
 
 export async function getInstanceDetail(id) {
-  console.log(id);
   const res = await fetch(`/api/v1/instances/${id}`, {
     credentials: "include",
+  });
+  return await res.json();
+}
+
+export async function updateState(id, state) {
+  const res = await fetch(`/api/v1/instances/${id}/state`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      state: state,
+    }),
   });
   return await res.json();
 }
